@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>STI Cinematic Intro</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: black; }
+    canvas { display: block; }
+    #flash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div id="flash"></div>
+  <audio id="soundtrack" loop>
+    <source src="moon_knight_theme.mp3" type="audio/mpeg">
+  </audio>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/FontLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/geometries/TextGeometry.js"></script>
+
+  <script>
+    // Audio setup with autoplay and fallback
+    const audio = document.getElementById('soundtrack');
+    audio.volume = 0.3;
+    function startAudio() {
+      audio.play().catch(e => console.log("Audio playback requires user interaction"));
+    }
+    // Try to play immediately
+    startAudio();
+    // Fallback on click
+    document.body.addEventListener('click', startAudio);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Space stars
+    const starGeometry = new THREE.BufferGeometry();
+    const starVertices = [];
+    for (let i = 0; i < 10000; i++) {
+      starVertices.push(
+        THREE.MathUtils.randFloatSpread(2000),
+        THREE.MathUtils.randFloatSpread(2000),
+        THREE.MathUtils.randFloatSpread(2000)
+      );
+    }
+    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+    const starMaterial = new THREE.PointsMaterial({ color: 0xFFFFFF, size: 0.5 });
+    const stars = new THREE.Points(starGeometry, starMaterial);
+    scene.add(stars);
+
+    scene.fog = new THREE.FogExp2(0x000011, 0.001);
+
+    // Enhanced lighting
+    const ambientLight = new THREE.AmbientLight(0x222222);
+    scene.add(ambientLight);
+    const pointLight1 = new THREE.PointLight(0x00AAFF, 3, 100);
+    pointLight1.position.set(20, 20, 20);
+    scene.add(pointLight1);
+    const pointLight2 = new THREE.PointLight(0xFF00AA, 2, 100);
+    pointLight2.position.set(-20, -20, 20);
+    scene.add(pointLight2);
+
+    const loader = new THREE.FontLoader();
+    const flashElement = document.getElementById('flash');
+
+    let stiMesh, subtitleMesh;
+    let startTime = Date.now();
+    let flashTime = 10000; // Flash after 10 seconds
+
+    loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+      // Massive STI text
+      const stiGeometry = new THREE.TextGeometry("STI", {
+        font: font,
+        size: 15,  // Much larger size
+        height: 3,
+        bevelEnabled: true,
+        bevelThickness: 0.5,
+        bevelSize: 0.3,
+        bevelSegments: 10
+      });
+      stiGeometry.center();
+
+      const stiMaterial = new THREE.MeshPhongMaterial({
+        color: 0x00AACC,
+        emissive: 0x0055FF,
+        emissiveIntensity: 0.8,
+        shininess: 100,
+        specular: 0xFFFFFF
+      });
+
+      stiMesh = new THREE.Mesh(stiGeometry, stiMaterial);
+      stiMesh.position.z = -30;
+      scene.add(stiMesh);
+
+      // Subtitle text (single combined mesh)
+      const subtitleGeometry = new THREE.TextGeometry("SPACE  THROUGH  INFINITY", {
+        font: font,
+        size: 3,  // Smaller size
+        height: 0.5,
+        bevelEnabled: true,
+        bevelThickness: 0.1,
+        bevelSize: 0.05,
+      });
+      subtitleGeometry.center();
+
+      const subtitleMaterial = new THREE.MeshPhongMaterial({
+        color: 0xAAAAAA,
+        emissive: 0xFFFFFF,
+        emissiveIntensity: 0.3,
+        transparent: true,
+        opacity: 0,
+        shininess: 30
+      });
+
+      subtitleMesh = new THREE.Mesh(subtitleGeometry, subtitleMaterial);
+      subtitleMesh.position.set(0, -12, -20);
+      scene.add(subtitleMesh);
+    });
+
+    camera.position.z = 50;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const currentTime = Date.now() - startTime;
+      
+      // Rotate stars slowly
+      stars.rotation.y += 0.0002;  // Slower rotation
+
+      if (stiMesh) {
+        // Continuous rotation of STI
+        stiMesh.rotation.y += 0.005;  // Slow, smooth rotation
+        
+        // Subtle pulsing effect
+        stiMesh.scale.x = stiMesh.scale.y = stiMesh.scale.z = 
+          1 + Math.sin(currentTime/1000) * 0.02;
+      }
+
+      if (subtitleMesh) {
+        // Slowly fade in subtitle after 3 seconds
+        if (currentTime > 3000 && subtitleMesh.material.opacity < 1) {
+          subtitleMesh.material.opacity = THREE.MathUtils.lerp(
+            subtitleMesh.material.opacity, 1, 0.005);  // Very slow fade
+        }
+        
+        // Subtle movement
+        subtitleMesh.position.y = -12 + Math.sin(currentTime/2000) * 0.5;
+      }
+
+      // Flash effect after 10 seconds
+      if (currentTime > flashTime && currentTime < flashTime + 500) {
+        const flashIntensity = Math.min(1, (flashTime + 500 - currentTime) / 250);
+        flashElement.style.opacity = flashIntensity;
+      } else if (currentTime >= flashTime + 500) {
+        flashElement.style.opacity = 0;
+        // Reset flash timer for next flash
+        if (currentTime > flashTime + 3000) {
+          flashTime = currentTime + 7000; // Next flash in 7 seconds
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
